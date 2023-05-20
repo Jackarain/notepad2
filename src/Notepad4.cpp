@@ -187,6 +187,7 @@ static DWORD dwFileCheckInterval;
 static DWORD dwAutoReloadTimeout;
 bool bUseXPFileDialog;
 static EscFunction iEscFunction;
+static DWORD iEscDbTime = 0;
 static bool bAlwaysOnTop;
 static bool bMinimizeToTray;
 static bool bTransparentMode;
@@ -4517,7 +4518,11 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		} else if (iEscFunction == EscFunction_Minimize) {
 			SendMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 		} else if (iEscFunction == EscFunction_Exit) {
-			ExitApplication(hwnd);
+			DWORD curTime = GetTickCount();
+			if (curTime - iEscDbTime < 400)
+				ExitApplication(hwnd);
+			else
+				iEscDbTime = curTime;
 		}
 		break;
 
