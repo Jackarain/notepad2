@@ -8,6 +8,7 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 20)
 
 if (MINGW)
     message(STATUS "****************************** MINGW ******************************")
@@ -27,6 +28,7 @@ endif()
 add_definitions(
     -DWIN32_LEAN_AND_MEAN
     -D_WIN32_WINNT=0x0501
+    -DNOMINMAX
     -DUNICODE
     -D_UNICODE
 )
@@ -34,14 +36,14 @@ add_definitions(
 add_subdirectory(scintilla)
 
 file(GLOB notepad4_SRC
-	src/*.c
-	src/*.cxx
+    src/*.c
+    src/*.cxx
     src/*.cpp
     src/*.rc
 
     src/EditLexers/*.cpp
 
-	src/*.h
+    src/*.h
     src/EditLexers/*.h
 )
 
@@ -49,6 +51,10 @@ add_executable(notepad4
     WIN32
     ${notepad4_SRC}
 )
+
+if (MSVC)
+    target_link_options(notepad4 PRIVATE /MANIFEST:NO)
+endif()
 
 target_link_libraries(notepad4
     ${SCINTILLA_LIBRARIES}
