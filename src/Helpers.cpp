@@ -1959,12 +1959,12 @@ void OpenContainingFolder(HWND hwnd, LPCWSTR pszFile, bool bSelect) noexcept {
 		HRESULT hr;
 		PIDLIST_ABSOLUTE pidlEntry = path ? ILCreateFromPath(path) : nullptr;
 		if (pidlEntry) {
-			hr = SHOpenFolderAndSelectItems(pidl, 1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), 0);
+			hr = SHOpenFolderAndSelectItems(pidl, 1, const_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), 0);
 			CoTaskMemFree(pidlEntry);
 		} else if (!bSelect) {
 #if 0
 			// Use an invalid item to open the folder?
-			hr = SHOpenFolderAndSelectItems(pidl, 1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&pidl), 0);
+			hr = SHOpenFolderAndSelectItems(pidl, 1, const_cast<PCUITEMID_CHILD_ARRAY>(&pidl), 0);
 #else
 			SHELLEXECUTEINFO sei;
 			memset(&sei, 0, sizeof(SHELLEXECUTEINFO));

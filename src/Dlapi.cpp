@@ -197,7 +197,7 @@ int DirList_Fill(HWND hwnd, LPCWSTR lpszDir, DWORD grfFlags, LPCWSTR lpszFileSpe
 						// Add found item to the List
 						// Check if it's part of the Filesystem
 						dwAttributes = SFGAO_FILESYSTEM | SFGAO_FOLDER;
-						lpsf->GetAttributesOf(1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), &dwAttributes);
+						lpsf->GetAttributesOf(1, const_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), &dwAttributes);
 
 						if (dwAttributes & SFGAO_FILESYSTEM) {
 
@@ -300,7 +300,7 @@ DWORD WINAPI DirList_IconThread(LPVOID lpParam) {
 
 			DWORD dwAttributes = SFGAO_LINK | SFGAO_SHARE;
 			// Link and Share Overlay
-			lplvid->lpsf->GetAttributesOf(1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&lplvid->pidl), &dwAttributes);
+			lplvid->lpsf->GetAttributesOf(1, const_cast<PCUITEMID_CHILD_ARRAY>(&lplvid->pidl), &dwAttributes);
 
 			if (dwAttributes & SFGAO_LINK) {
 				lvi.mask |= LVIF_STATE;
@@ -559,7 +559,7 @@ bool DirList_PropertyDlg(HWND hwnd, int iItem) {
 	LV_ITEMDATA *lplvid = AsPointer<LV_ITEMDATA *>(lvi.lParam);
 	LPCONTEXTMENU lpcm;
 
-	if (S_OK == lplvid->lpsf->GetUIObjectOf(GetParent(hwnd), 1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&lplvid->pidl), IID_IContextMenu, nullptr, AsPPVArgs(&lpcm))) {
+	if (S_OK == lplvid->lpsf->GetUIObjectOf(GetParent(hwnd), 1, const_cast<PCUITEMID_CHILD_ARRAY>(&lplvid->pidl), IID_IContextMenu, nullptr, AsPPVArgs(&lpcm))) {
 		CMINVOKECOMMANDINFO cmi;
 		cmi.cbSize = sizeof(CMINVOKECOMMANDINFO);
 		cmi.fMask = 0;
@@ -591,7 +591,7 @@ bool DirList_PropertyDlg(HWND hwnd, int iItem) {
 bool DirList_GetLongPathName(HWND hwnd, LPWSTR lpszLongPath) noexcept {
 	WCHAR tch[MAX_PATH];
 	const DLDATA * const lpdl = static_cast<DLDATA *>(GetProp(hwnd, pDirListProp));
-	if (SHGetPathFromIDList(reinterpret_cast<PCIDLIST_ABSOLUTE>(lpdl->pidl), tch)) {
+	if (SHGetPathFromIDList(const_cast<PCIDLIST_ABSOLUTE>(lpdl->pidl), tch)) {
 		lstrcpy(lpszLongPath, tch);
 		return true;
 	}
@@ -677,7 +677,7 @@ bool DirListFilter::Match(LPSHELLFOLDER lpsf, LPCITEMIDLIST pidl) const noexcept
 	}
 
 	WIN32_FIND_DATA fd;
-	SHGetDataFromIDList(lpsf, reinterpret_cast<PCUITEMID_CHILD>(pidl), SHGDFIL_FINDDATA, &fd, sizeof(WIN32_FIND_DATA));
+	SHGetDataFromIDList(lpsf, const_cast<PCUITEMID_CHILD>(pidl), SHGDFIL_FINDDATA, &fd, sizeof(WIN32_FIND_DATA));
 
 	// All the directories are added
 	if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -769,7 +769,7 @@ int DriveBox_Fill(HWND hwnd) {
 						// Add item to the List if it is part of the
 						// Filesystem
 						ULONG dwAttributes = SFGAO_FILESYSTEM;
-						lpsf->GetAttributesOf(1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), &dwAttributes);
+						lpsf->GetAttributesOf(1, const_cast<PCUITEMID_CHILD_ARRAY>(&pidlEntry), &dwAttributes);
 
 						if (dwAttributes & SFGAO_FILESYSTEM) {
 
@@ -793,7 +793,7 @@ int DriveBox_Fill(HWND hwnd) {
 
 									while ((SendMessage(hwnd, CBEM_GETITEM, 0, AsInteger<LPARAM>(&cbei2)))) {
 										const DC_ITEMDATA * const lpdcid2 = AsPointer<const DC_ITEMDATA *>(cbei2.lParam);
-										hr = lpdcid->lpsf->CompareIDs(0, reinterpret_cast<PCUIDLIST_RELATIVE>(lpdcid->pidl), reinterpret_cast<PCUIDLIST_RELATIVE>(lpdcid2->pidl));
+										hr = lpdcid->lpsf->CompareIDs(0, const_cast<PCUIDLIST_RELATIVE>(lpdcid->pidl), const_cast<PCUIDLIST_RELATIVE>(lpdcid2->pidl));
 										if (static_cast<short>(HRESULT_CODE(hr)) < 0) {
 											break;
 										}
@@ -910,7 +910,7 @@ bool DriveBox_PropertyDlg(HWND hwnd) {
 	const DC_ITEMDATA * const lpdcid = AsPointer<const DC_ITEMDATA *>(cbei.lParam);
 	LPCONTEXTMENU lpcm;
 
-	if (S_OK == lpdcid->lpsf->GetUIObjectOf(GetParent(hwnd), 1, reinterpret_cast<PCUITEMID_CHILD_ARRAY>(&lpdcid->pidl), IID_IContextMenu, nullptr, AsPPVArgs(&lpcm))) {
+	if (S_OK == lpdcid->lpsf->GetUIObjectOf(GetParent(hwnd), 1, const_cast<PCUITEMID_CHILD_ARRAY>(&lpdcid->pidl), IID_IContextMenu, nullptr, AsPPVArgs(&lpcm))) {
 		CMINVOKECOMMANDINFO cmi;
 		cmi.cbSize = sizeof(CMINVOKECOMMANDINFO);
 		cmi.fMask = 0;
