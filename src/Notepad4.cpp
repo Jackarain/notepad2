@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 *
 * Notepad4
@@ -27,6 +27,7 @@ struct IUnknown;
 #include <commctrl.h>
 #include <commdlg.h>
 #include <uxtheme.h>
+#include <vssym32.h>
 #include <cstdio>
 #include <cinttypes>
 #include "SciCall.h"
@@ -38,6 +39,10 @@ struct IUnknown;
 #include "Styles.h"
 #include "Dialogs.h"
 #include "resource.h"
+
+#include "NppDarkMode.h"
+#include "dpiManagerV2.h"
+
 
 #ifndef SM_CXPADDEDBORDER
 #define SM_CXPADDEDBORDER	92
@@ -652,6 +657,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	// Load Settings
 	LoadSettings();
 
+	NppDarkMode::initDarkMode();
+	DPIManagerV2::initDpiAPI();
+
 	if (!InitApplication(hInstance)) {
 		CleanUpResources(false);
 		return FALSE;
@@ -1091,6 +1099,154 @@ static inline bool IsFileStartsWithDotLog() noexcept {
 }
 #endif
 
+WNDPROC g_oldReBar = nullptr;
+WNDPROC g_statusBar = nullptr;
+
+HFONT g_statusFont;
+HTHEME g_hTheme;
+
+LRESULT CALLBACK ReBarWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+	case WM_ERASEBKGND:
+		{
+			RECT rc{};
+			GetClientRect(hWnd, &rc);
+			FillRect((HDC)wParam, &rc, NppDarkMode::getDarkerBackgroundBrush());
+			return TRUE;
+		}
+	default:
+		// 调用原始窗口过程以处理其他消息
+		return CallWindowProc(g_oldReBar, hWnd, uMsg, wParam, lParam);
+	}
+}
+
+LRESULT CALLBACK StatusWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+	case WM_ERASEBKGND: {
+		RECT rc{};
+		GetClientRect(hWnd, &rc);
+		FillRect((HDC)wParam, &rc, NppDarkMode::getDarkerBackgroundBrush());
+		return TRUE;
+	}
+	case WM_PAINT:
+	case WM_PRINTCLIENT: {
+		if (!NppDarkMode::isEnabled()) {
+			break; // Let the control paint itself the default way
+		}
+
+		PAINTSTRUCT ps{};
+		HDC hdc = (uMsg == WM_PAINT) ? ::BeginPaint(hWnd, &ps) : reinterpret_cast<HDC>(wParam);
+
+		struct {
+			int horizontal = 0;
+			int vertical = 0;
+			int between = 0;
+		} borders{};
+
+		SendMessage(hWnd, SB_GETBORDERS, 0, (LPARAM)&borders);
+
+		const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+		bool isSizeGrip = style & SBARS_SIZEGRIP;
+
+		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, NppDarkMode::getEdgePen()));
+		auto holdFont = static_cast<HFONT>(::SelectObject(hdc, g_statusFont));
+
+		int nParts = static_cast<int>(SendMessage(hWnd, SB_GETPARTS, 0, 0));
+		std::wstring str;
+		for (int i = 0; i < nParts; ++i) {
+			RECT rcPart{};
+			SendMessage(hWnd, SB_GETRECT, i, (LPARAM)&rcPart);
+			if (!::RectVisible(hdc, &rcPart)) {
+				continue;
+			}
+
+			if (nParts > 2) // to not apply on status bar in find dialog
+			{
+				POINT edges[] = {
+					{ rcPart.right - 2, rcPart.top + 1 },
+					{ rcPart.right - 2, rcPart.bottom - 3 }
+				};
+				Polyline(hdc, edges, _countof(edges));
+			}
+
+			RECT rcDivider = { rcPart.right - borders.vertical, rcPart.top, rcPart.right, rcPart.bottom };
+
+			DWORD cchText = 0;
+			cchText = LOWORD(SendMessage(hWnd, SB_GETTEXTLENGTH, i, 0));
+			str.resize(cchText + 1); // technically the std::wstring might not have an internal null character at the end of the buffer, so add one
+			LRESULT lr = SendMessage(hWnd, SB_GETTEXT, i, (LPARAM)&str[0]);
+			str.resize(cchText); // remove the extra NULL character
+			bool ownerDraw = false;
+			if (cchText == 0 && (lr & ~(SBT_NOBORDERS | SBT_POPOUT | SBT_RTLREADING)) != 0) {
+				// this is a pointer to the text
+				ownerDraw = true;
+			}
+			SetBkMode(hdc, TRANSPARENT);
+			SetTextColor(hdc, NppDarkMode::getTextColor());
+
+			rcPart.left += borders.between;
+			rcPart.right -= borders.vertical;
+
+			if (ownerDraw) {
+				UINT id = GetDlgCtrlID(hWnd);
+				DRAWITEMSTRUCT dis = {
+					0, 0, static_cast<UINT>(i), ODA_DRAWENTIRE, id, hWnd, hdc, rcPart, static_cast<ULONG_PTR>(lr)
+				};
+
+				SendMessage(GetParent(hWnd), WM_DRAWITEM, id, (LPARAM)&dis);
+			} else {
+				DrawText(hdc, str.data(), static_cast<int>(str.size()), &rcPart, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
+			}
+
+			if (!isSizeGrip && i < (nParts - 1)) {
+				FillRect(hdc, &rcDivider, NppDarkMode::getSofterBackgroundBrush());
+			}
+		}
+
+		if (isSizeGrip) {
+			SIZE gripSize{};
+			RECT rc{};
+			::GetClientRect(hWnd, &rc);
+			GetThemePartSize(g_hTheme, hdc, SP_GRIPPER, 0, &rc, TS_DRAW, &gripSize);
+			rc.left = rc.right - gripSize.cx;
+			rc.top = rc.bottom - gripSize.cy;
+			DrawThemeBackground(g_hTheme, hdc, SP_GRIPPER, 0, &rc, nullptr);
+		}
+
+		::SelectObject(hdc, holdFont);
+		::SelectObject(hdc, holdPen);
+
+		if (uMsg == WM_PAINT) {
+			::EndPaint(hWnd, &ps);
+		}
+		return 0;
+	}
+#if 0
+	case WM_NCDESTROY: {
+		::RemoveWindowSubclass(hWnd, StatusBarSubclass, uIdSubclass);
+		break;
+	}
+#endif
+	case WM_DPICHANGED:
+	case WM_DPICHANGED_AFTERPARENT:
+	case WM_THEMECHANGED: {
+		CloseThemeData(g_hTheme);
+		LOGFONT lf{ DPIManagerV2::getDefaultGUIFontForDpi(::GetParent(hWnd), DPIManagerV2::FontType::status) };
+		::DeleteObject(g_statusFont);
+		g_statusFont = ::CreateFontIndirect(&lf);
+
+		if (uMsg != WM_THEMECHANGED) {
+			return 0;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	return CallWindowProc(g_statusBar, hWnd, uMsg, wParam, lParam);
+}
+
 //=============================================================================
 //
 // MainWndProc()
@@ -1100,17 +1256,71 @@ static inline bool IsFileStartsWithDotLog() noexcept {
 //
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam) {
 	static bool bShutdownOK;
+	LRESULT result = FALSE;
+
+	if (NppDarkMode::isDarkMenuEnabled() && NppDarkMode::isEnabled() && NppDarkMode::runUAHWndProc(hwnd, umsg, wParam, lParam, &result)) {
+		return result;
+	}
 
 	switch (umsg) {
+	case NppDarkMode::NPPM_INTERNAL_REFRESHDARKMODE: {
+			LOGFONT lf{ DPIManagerV2::getDefaultGUIFontForDpi(hwnd, DPIManagerV2::FontType::status) };
+			g_statusFont = ::CreateFontIndirect(&lf);
+
+			g_hTheme = ::OpenThemeData(hwnd, VSCLASS_STATUS);
+
+			NppDarkMode::allowDarkModeForWindow(hwnd, true);
+			NppDarkMode::setTitleBarThemeColor(hwnd);
+			NppDarkMode::autoThemeChildControls(hwnd);
+
+			g_oldReBar = (WNDPROC)SetWindowLongPtr(hwndReBar, GWLP_WNDPROC, (LONG_PTR)ReBarWndProc);
+			g_statusBar = (WNDPROC)SetWindowLongPtr(hwndStatus, GWLP_WNDPROC, (LONG_PTR)StatusWndProc);
+		}
+		break;
+	case WM_NCCREATE: {
+			if (NppDarkMode::isExperimentalSupported())
+				NppDarkMode::enableDarkScrollBarForWindowAndChildren(hwnd);
+
+			return TRUE;
+		}
+		break;
+
 	// Quickly handle painting and sizing messages, found in ScintillaWin.cxx
 	// Cool idea, don't know if this has any effect... ;-)
 	case WM_MOVE:
 	case WM_MOUSEACTIVATE:
 	case WM_NCHITTEST:
 	case WM_NCCALCSIZE:
-	case WM_NCPAINT:
+		return DefWindowProc(hwnd, umsg, wParam, lParam);
+	case WM_NCACTIVATE: {
+		// Note: lParam is -1 to prevent endless loops of calls
+		// ::SendMessage(_dockingManager.getHSelf(), WM_NCACTIVATE, wParam, -1);
+		auto result = ::DefWindowProc(hwnd, umsg, wParam, lParam);
+		if (NppDarkMode::isDarkMenuEnabled() && NppDarkMode::isEnabled()) {
+			NppDarkMode::drawUAHMenuNCBottomLine(hwnd);
+		}
+
+		NppDarkMode::calculateTreeViewStyle();
+		return result;
+	}
+	case WM_NCPAINT: {
+		auto result = ::DefWindowProc(hwnd, umsg, wParam, lParam);
+		if (NppDarkMode::isDarkMenuEnabled() && NppDarkMode::isEnabled()) {
+			NppDarkMode::drawUAHMenuNCBottomLine(hwnd);
+		}
+		return result;
+	}
 	case WM_PAINT:
+		return DefWindowProc(hwnd, umsg, wParam, lParam);
 	case WM_ERASEBKGND:
+		if (NppDarkMode::isEnabled()) {
+			RECT rc = {};
+			GetClientRect(hwnd, &rc);
+			::FillRect(reinterpret_cast<HDC>(wParam), &rc, NppDarkMode::getDarkerBackgroundBrush());
+			return 0;
+		} else {
+			return ::DefWindowProc(hwnd, umsg, wParam, lParam);
+		}
 	case WM_NCMOUSEMOVE:
 	case WM_NCLBUTTONDOWN:
 	case WM_WINDOWPOSCHANGING:
@@ -1954,6 +2164,9 @@ LRESULT MsgCreate(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 	mruFile.Init(MRU_KEY_RECENT_FILES, flags);
 	mruFind.Init(MRU_KEY_RECENT_FIND, MRUFlags_QuoteValue);
 	mruReplace.Init(MRU_KEY_RECENT_REPLACE, MRUFlags_QuoteValue);
+
+	NppDarkMode::setDarkTitleBar(hwnd);
+	NppDarkMode::refreshDarkMode(hwnd, true);
 	return 0;
 }
 

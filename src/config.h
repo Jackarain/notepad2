@@ -1,4 +1,4 @@
-// This file is part of Notepad4.
+﻿// This file is part of Notepad4.
 // See License.txt for details about distribution and modification.
 #pragma once
 
@@ -18,7 +18,7 @@
 #define NP2_ENABLE_DOT_LOG_FEATURE				0
 
 //! Enable localization with satellite resource DLLs.
-#define NP2_ENABLE_APP_LOCALIZATION_DLL			1
+#define NP2_ENABLE_APP_LOCALIZATION_DLL			0
 //! Enable test localization dialog layout with default UI font for target locale.
 #define NP2_ENABLE_TEST_LOCALIZATION_LAYOUT		0
 
