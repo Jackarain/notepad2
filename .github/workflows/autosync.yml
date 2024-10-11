@@ -1,0 +1,21 @@
+name: repo-sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  repo-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: repo-sync-master
+        uses: repo-sync/github-sync@v2.3.0
+        with:
+          source_repo: https://github.com/zufuliu/notepad4.git
+          source_branch: main
+          destination_branch: darkmode
+          github_token: ${{ secrets.GITHUB_TOKEN }}
