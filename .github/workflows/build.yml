@@ -22,10 +22,16 @@ jobs:
     - name: Enable Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1.13.0
 
+    - name: Configure by CMake
+      run: >
+        cmake -G Ninja
+        -B building -S "${{ github.workspace }}"
+        -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install"
+
     - name: Build
-      run: |
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} "-DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install" -B building
-        cmake --build building
+      run: cmake --build building
+
     - name: Install to temp dir
       run: cmake --install building --config ${{ env.BUILD_TYPE }}
 
