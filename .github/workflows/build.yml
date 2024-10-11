@@ -24,10 +24,10 @@ jobs:
 
     - name: Build
       run: |
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} "-DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install" -B build
-        cmake --build build
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} "-DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install" -B building
+        cmake --build building
     - name: Install to temp dir
-      run: cmake --install build --config ${{ env.BUILD_TYPE }}
+      run: cmake --install building --config ${{ env.BUILD_TYPE }}
 
     - name: Upload generic artifacts
       uses: actions/upload-artifact@v4.4.0
